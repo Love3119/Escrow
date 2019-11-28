@@ -1,0 +1,143 @@
+pragma solidity ^0.4.24;
+
+contract SafeMath {
+    function safeAdd(uint256 a, uint256 b) public pure returns (uint256 c) {
+        c = a + b;
+        require(c >= a);
+    }
+    function safeSub(uint256 a, uint256 b) public pure returns (uint256 c) {
+        require(b <= a);
+        c = a - b;
+    }
+    function safeMul(uint256 a, uint256 b) public pure returns (uint256 c) {
+        c = a * b;
+        require(a == 0 || c / a == b);
+    }
+    function safeDiv(uint256 a, uint256 b) public pure returns (uint256 c) {
+        require(b > 0);
+        c = a / b;
+    }
+}
+
+
+// ----------------------------------------------------------------------------
+// ERC Token Standard #20 Interface
+// https://github.com/ethereum/EIPs/blob/master/EIPS/eip-20-token-standard.md
+// ----------------------------------------------------------------------------
+contract ERC20Interface {
+    function totalSupply() public constant returns (uint256);
+    function balanceOf(address tokenOwner) public constant returns (uint256 balance);
+    function allowance(address tokenOwner, address spender) public constant returns (uint256 remaining);
+    function transfer(address to, uint256 tokens) public returns (bool success);
+    function approve(address spender, uint256 tokens) public returns (bool success);
+    function transferFrom(address from, address to, uint256 tokens) public returns (bool success);
+
+    event Transfer(address indexed from, address indexed to, uint256 tokens);
+    event Approval(address indexed tokenOwner, address indexed spender, uint256 tokens);
+}
+
+
+// ----------------------------------------------------------------------------
+// Owned contract
+// ----------------------------------------------------------------------------
+contract Owned {
+    address public owner;
+    address public newOwner;
+
+    event OwnershipTransferred(address indexed _from, address indexed _to);
+
+    constructor() public {
+        owner = msg.sender;
+    }
+
+    modifier onlyOwner {
+        require(msg.sender == owner);
+        _;
+    }
+
+    function transferOwnership(address _newOwner) public onlyOwner {
+        newOwner = _newOwner;
+    }
+    function acceptOwnership() public {
+        require(msg.sender == newOwner);
+        emit OwnershipTransferred(owner, newOwner);
+        owner = newOwner;
+        newOwner = address(0);
+    }
+}
+
+
+// ----------------------------------------------------------------------------
+// ERC20 Token, with the addition of symbol, name and decimals and assisted
+// token transfers
+// ----------------------------------------------------------------------------
+contract MyContract is Owned {
+    
+    
+  event Created(uint256 tradeId, uint256 createdAt, uint256 expiredAt, address originatorAddress, address benificiaryAddress, string expectedToken, uint256 receivedQty);
+  event Released(uint256 tradeId);
+  
+  
+    struct Escrow {
+         uint256 tradeId;
+         uint256 createdAt;
+         uint256 expiredAt;
+         address originatorAddress;
+         address benificiaryAddress;
+         string expectedToken;
+         uint256 receivedQty;
+    }
+
+    mapping (uint256 => Escrow) public escrows;
+    mapping(address => mapping(address => uint256)) public escrowBalance;
+    uint256 feePercent;
+    address feeAddress;
+//ERC20interface myToken;
+    // ------------------------------------------------------------------------
+    // Constructor
+    // ------------------------------------------------------------------------
+    constructor() public {
+ //  escrowBalance[msg.sender][this] = 1000000000;
+ // myToken = ERC20interface(erc20Address)
+    }
+
+
+    function createEscrow( uint256 _tradeId,
+         uint256 _expiredAt,
+         address _benificiaryAddress,
+         string _expectedToken,
+         uint256 _receivedQty, 
+         address token)payable external
+{   
+    
+   uint256 tokenBalance = ERC20Interface(token).balanceOf(msg.sender);
+    require(tokenBalance >=_receivedQty, "Insufficient balance.");
+     
+       escrows[_tradeId] = Escrow(_tradeId, now, now + _expiredAt, msg.sender, _benificiaryAddress, _expectedToken, _receivedQty);
+    
+    ERC20Interface(token).transferFrom(msg.sender, this, _receivedQty);   
+       emit Created (_tradeId, now, now + _expiredAt, msg.sender, _benificiaryAddress, _expectedToken, _receivedQty);
+        
+    }
+    
+ 
+    function approve(ERC20Interface token, uint256 _value) public returns (bool) {   
+     return token.approve(this, _value);  
+    }
+    
+    function releaseToken(uint256 _tradeId, address token) external {
+        Escrow storage escrow = escrows[_tradeId];
+     ERC20Interface(token).transfer(escrow.benificiaryAddress, escrow.receivedQty);
+      emit Released(_tradeId);
+      delete escrows[_tradeId];
+    }
+        
+       
+    function balanceO(address token, address owner) public view returns(uint256 balance){
+    return ERC20Interface(token).balanceOf(owner);
+}
+
+  function allow(address token) public view returns(uint256 balance){
+    return ERC20Interface(token).allowance(msg.sender, address(this));
+}
+}
